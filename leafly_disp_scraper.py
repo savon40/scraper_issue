@@ -13,23 +13,24 @@ class LeaflyDispensaryScraper(object):
         self._http_client = http_client
         self._details_extractor = leafly_details_extractor
         self._url = 'https://www.leafly.com/finder/{}'
-        self._api_url = 'https://web-finder.leafly.com/api/search?slug={}'
+        self._api_url = 'https://web-finder.leafly.com/finder/search?slug={}'
         self._data = {'Take': 1000, 'Page': 0}
 
     def produce(self, state_name):
         url_list = None
         response = self._http_client.get(self._api_url.format(state_name))
         if response.success:
-            json_data = loadJson(response.content)
-            zipcode = json_data.get('zip')
-            state = json_data.get('stateName')
+            content = re.compile(r'__NEXT_DATA__ = (.*);__NEXT_LOADED_PAGES__=').search(response.content).group(1)
+            json_data = loadJson(content)
+            zipcode = json_data.get('props').get('pageProps').get('zip')
+            state = json_data.get('props').get('pageProps').get('stateName')
 
             r = self._http_client.get(self._url.format(state))
             if r.success:
                 tree_html = html.fromstring(r.content)
                 url_list = tree_html.xpath("//div[contains(@class, 'view-menu')]//a/@href")
 
-            itemsLst = try_get_list(json_data, 'dispensaries')
+            itemsLst = try_get_list(json_data.get('props').get('pageProps'), 'dispensaries')
             if len(itemsLst) > 0:
                 for i, item in enumerate(itemsLst[0]):
                     cityLst = try_get_list(item, 'city')
